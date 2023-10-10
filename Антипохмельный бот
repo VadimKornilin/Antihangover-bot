@@ -1,0 +1,162 @@
+# импортируем библиотеку для работы с телеграм-ботом
+import telebot
+# импортируем библиотеку для работы с регулярными выражениями
+import re
+
+# создаем бота, присваиваем ему имя. В аргументе необходимо записать токен бота (выдается BotFather)
+bot = telebot.TeleBot("6596207195:AAFANrml1xOiQmtz-Dy7FtGqju72_scDG0g")
+
+# создаем тексты типовых ответов
+start_message = "Привет, я телеграм-бот, который умеет расчитывать " \
+                "беспохмельную дозу алкоголя. Собираешься выпить?"
+error_general = "Я машина, бездушный робот. Я не понимаю такой формат. "
+
+
+# создаем менеджер контекста для того, чтобы бот "понимал" текстовые сообщения
+@bot.message_handler(content_types=["text"])
+def start(message):
+    # трансформируем сообщение, удаляя из него ненужные знаки
+    message.text = re.sub("[1-9@.!? _-]", "", message.text)
+    # задаем ответ на команду '/start'
+    if message.text == "/start":
+        bot.send_message(message.from_user.id, start_message)
+        # указываем, на какую функцию необходимо переводить бота после выполнения этой
+        bot.register_next_step_handler(message, agree)
+    # учим бота реагировать на благодарности
+    elif message.text.lower() in {"спасибо", "благодарю", "спасибо большое",
+                                  "спасибки", "спасибочки", "thanks", "thankyou"}:
+        bot.send_message(message.from_user.id, "Пожалуйста! Если еще понадоблюсь, обращайся!")
+    # обработка некорректно введенного сообщения
+    else:
+        bot.send_message(message.from_user.id, 'Я не понимаю твой запрос. Напиши /start')
+
+
+def agree(message):
+    message.text = re.sub("[1-9@.!? _-]", "", message.text)
+    # задаем множества потенциальных сообщенйи пользователя для положительной и отрицательной
+    # реакции бота
+    yes_set = {"да", "+", "yes", "такточно", "именно так", "абсолютноточно", "собираюсь", "планирую"}
+    no_set = {"нет", "никакнет", "-", "no", "несегодня", "нехочу", "несобираюсь", "непланирую"}
+    # в случае положительного ответа переводит пользователя на следующую функцию
+    if message.text.lower() in yes_set:
+        bot.send_message(message.from_user.id, "Хорошо, я помогу тебе не переборщить. "
+                                               "Напиши свою массу тела (кг)")
+        bot.register_next_step_handler(message, get_mass)
+    # в случае отрицательного - завершает ветку диалога, переводит бота в начальное состояние
+    elif message.text.lower() in no_set:
+        bot.send_message(message.from_user.id, "Ну и правильно. Хорошего дня")
+        bot.register_next_step_handler(message, start)
+    # следующий блок нужен для того, чтобы в любой момент переписки можно было перезапустить бота,
+    # не доводя диалог до конца, поэтому будет присутствовать в каждой следующей функции
+    elif message.text == "/start":
+        bot.send_message(message.from_user.id, start_message)
+        bot.register_next_step_handler(message, agree)
+    # блок обработки некорректного формата сообщения. Переводит на эту же функцию
+    else:
+        bot.send_message(message.from_user.id, 'Я тебя не понимаю. Напиши в формате "да" или "нет"')
+        bot.register_next_step_handler(message, agree)
+
+
+# получение массы тела пользователя
+def get_mass(message):
+    global mass
+    message.text = re.sub("[@!? _]", "", message.text)
+    # предусматриваем ввод данных через запятую
+    message.text = re.sub(",", ".", message.text)
+    if message.text == "/start":
+        bot.send_message(message.from_user.id, start_message)
+        bot.register_next_step_handler(message, agree)
+    else:
+        try:
+            mass = float(message.text)
+            # в случае нереалистичных ответов переводит пользователя на эту жу функцию
+            if mass < 0:
+                bot.send_message(message.from_user.id,
+                                 "Хватит меня троллить. Ну не может у тебя быть отрицательной массы."
+                                 " Напиши нормально")
+                bot.register_next_step_handler(message, get_mass)
+            elif mass > 610:
+                bot.send_message(message.from_user.id,
+                                 "Хватит меня троллить. Самый тяжелый "
+                                 "человек весит 610 кг. Напиши нормально")
+                bot.register_next_step_handler(message, get_mass)
+
+            else:
+                bot.register_next_step_handler(message, get_gradus)
+                bot.send_message(message.from_user.id, "Теперь напиши крепость напитка в %")
+        # блок обработки ошибок, возникающих при неправильном формате
+        except Exception:
+            bot.send_message(message.from_user.id, error_general +
+                             "Напиши циферками в формате '72' или '72.5'")
+            bot.register_next_step_handler(message, get_mass)
+
+
+# получение градуса напитка пользователя
+def get_gradus(message):
+    global gradus
+    message.text = re.sub("[@!? _]", "", message.text)
+    message.text = re.sub(",", ".", message.text)
+    if message.text == "/start":
+        bot.send_message(message.from_user.id, start_message)
+        bot.register_next_step_handler(message, agree)
+    else:
+        try:
+            gradus = float(message.text) / 100
+            if 81 < gradus * 100 <= 100:
+                bot.send_message(message.from_user.id, "Даже не вздумай это пить, это небезопасно")
+                bot.register_next_step_handler(message, start)
+            elif gradus * 100 > 100.0 or gradus < 0:
+                bot.send_message(message.from_user.id,
+                                 "Хватит меня троллить. Такого градуса быть не может. Напиши нормально")
+                bot.register_next_step_handler(message, get_gradus)
+            else:
+                bot.send_message(message.from_user.id, "А теперь напиши свой пол")
+                bot.register_next_step_handler(message, get_sex)
+        except Exception:
+            bot.send_message(message.from_user.id, error_general +
+                             "Напиши циферками в формате '40' или '42.5'")
+            bot.register_next_step_handler(message, get_gradus)
+
+
+# получение пола пользователя и расчет беспохмельной дозы алкоголя
+def get_sex(message):
+    global sex
+    message.text = re.sub("[1-9@.!? _-]", "", message.text)
+    male_set = {"м", "муж", "мужчина", "мужской"}
+    female_set = {"ж", "жен", "женщина", "женский"}
+    sex_set = male_set | female_set
+    if message.text == "/start":
+        bot.send_message(message.from_user.id, start_message)
+        bot.register_next_step_handler(message, agree)
+    elif message.text.lower() in sex_set:
+        try:
+            if message.text.lower() in female_set:
+                sex_coef = 0.8
+                if gradus != 0:
+                    norma = ((1.5 / gradus) * mass * sex_coef)
+                    bot.send_message(message.from_user.id,
+                                     f"Твоя беспохмельная доза составляет {round(norma, 2)} мл")
+                    bot.register_next_step_handler(message, start)
+                else:
+                    bot.send_message(message.from_user.id, f"От безалкогольного напитка похмелья не будет")
+                    bot.register_next_step_handler(message, start)
+            elif message.text.lower() in male_set:
+                sex_coef = 1
+                if gradus != 0:
+                    norma = ((1.5 / gradus) * mass * sex_coef)
+                    bot.send_message(message.from_user.id, f"Твоя беспохмельная "
+                                                           f"доза составляет {round(norma, 2)} мл")
+                    bot.register_next_step_handler(message, start)
+                else:
+                    bot.send_message(message.from_user.id, f"От безалкогольного напитка похмелья не будет")
+                    bot.register_next_step_handler(message, start)
+        except Exception:
+            bot.send_message(message.from_user.id, error_general + "Напиши свой пол в формате 'м' или 'ж'")
+            bot.register_next_step_handler(message, get_sex)
+    else:
+        bot.send_message(message.from_user.id, error_general + "Напиши свой пол в формате 'м' или 'ж'")
+        bot.register_next_step_handler(message, get_sex)
+
+
+# теперь бот будет запрашивать у телеграма, написал ли ему кто-нибудь (по умолчанию: каждые 0.5 секунды)
+bot.polling(none_stop=True)
