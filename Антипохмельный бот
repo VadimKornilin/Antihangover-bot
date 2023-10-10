@@ -4,7 +4,7 @@ import telebot
 import re
 
 # создаем бота, присваиваем ему имя. В аргументе необходимо записать токен бота (выдается BotFather)
-bot = telebot.TeleBot("6596207195:AAFANrml1xOiQmtz-Dy7FtGqju72_scDG0g")
+bot = telebot.TeleBot("")
 
 # создаем тексты типовых ответов
 start_message = "Привет, я телеграм-бот, который умеет расчитывать " \
